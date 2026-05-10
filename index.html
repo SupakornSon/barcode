@@ -3,17 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Barcode Auto PDF</title>
+    <title>Barcode PDF Tracker</title>
     <script src="https://unpkg.com"></script>
     <script src="https://cloudflare.com"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; text-align: center; background: #f4f4f9; }
+        body { font-family: sans-serif; padding: 20px; text-align: center; background: #f0f2f5; }
         .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        #status { padding: 10px; margin: 10px 0; border-radius: 8px; font-weight: bold; background: #eee; }
-        .ready { background: #d4edda !important; color: #155724; }
-        #reader { width: 100%; margin-top: 15px; border-radius: 10px; overflow: hidden; display: none; }
+        
+        /* สไตล์หลอดโหลด */
+        #progress-container { width: 100%; background: #eee; border-radius: 10px; margin: 15px 0; display: block; overflow: hidden; }
+        #progress-bar { width: 0%; height: 20px; background: #007bff; transition: width 0.3s; }
+        #status-text { font-size: 14px; margin-bottom: 5px; font-weight: bold; }
+
+        #reader { width: 100%; margin-top: 15px; border-radius: 10px; overflow: hidden; display: none; border: 2px solid #333; }
         .btn { padding: 15px; width: 100%; font-size: 18px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 10px; }
-        .btn-start { background: #28a745; color: white; display: none; } /* ซ่อนไว้ก่อนจนกว่า PDF จะพร้อม */
+        .btn-start { background: #28a745; color: white; display: none; }
         .btn-stop { background: #dc3545; color: white; display: none; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
@@ -22,30 +26,35 @@
 <body>
 
 <div class="container">
-    <h2>📦 ระบบสแกนเทียบ PDF (Auto)</h2>
+    <h2>📦 ระบบเช็คสินค้าอัตโนมัติ</h2>
     
-    <div id="status">⏳ กำลังโหลดไฟล์ข้อมูล PDF...</div>
+    <div id="loading-area">
+        <div id="status-text">⏳ กำลังโหลดไฟล์ PDF...</div>
+        <div id="progress-container">
+            <div id="progress-bar"></div>
+        </div>
+    </div>
 
-    <button id="start-btn" class="btn btn-start">เริ่มสแกน</button>
-    <button id="stop-btn" class="btn btn-stop">เสร็จสิ้น</button>
+    <button id="start-btn" class="btn btn-start">📸 เริ่มสแกนบาร์โค้ด</button>
+    <button id="stop-btn" class="btn btn-stop">🛑 เสร็จสิ้น (ดูสรุป)</button>
 
     <div id="reader"></div>
 
     <div id="summary" style="display:none; text-align:left;">
-        <h3>📊 สรุปผลการเช็ค</h3>
+        <h3>📊 ผลการตรวจสอบ (เรียงเลข)</h3>
         <table id="result-table">
             <thead>
-                <tr><th>บาร์โค้ด</th><th>จำนวน</th><th>สถานะ</th></tr>
+                <tr><th>บาร์โค้ด</th><th>จำนวน</th><th>ผลลัพธ์</th></tr>
             </thead>
             <tbody id="result-body"></tbody>
         </table>
-        <button class="btn" style="background:#6c757d; color:white;" onclick="location.reload()">สแกนใหม่</button>
+        <button class="btn" style="background:#6c757d; color:white;" onclick="location.reload()">🔄 สแกนใหม่</button>
     </div>
 </div>
 
 <script>
-    // *** เปลี่ยนชื่อไฟล์ตรงนี้ให้ตรงกับชื่อไฟล์ใน GitHub ของคุณ ***
-    const PDF_URL = 'รายการสินค้านอกเหนือกลุ่ม 58 ที่สามารถเบิก.pdf'; 
+    // ชื่อไฟล์ต้องตรงเป๊ะกับที่อัปโหลดขึ้น GitHub
+    const PDF_NAME = 'รายการสินค้านอกเหนือกลุ่ม 58 ที่สามารถเบิก.pdf'; 
 
     let pdfTextContent = "";
     let scannedData = [];
@@ -53,31 +62,45 @@
 
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cloudflare.com';
 
-    // ฟังก์ชันโหลดและอ่าน PDF อัตโนมัติ
     async function loadPDF() {
-        const statusDiv = document.getElementById('status');
-        try {
-            const loadingTask = pdfjsLib.getDocument(PDF_URL);
-            const pdf = await loadingTask.promise;
-            let fullText = "";
+        const progressBar = document.getElementById('progress-bar');
+        const statusText = document.getElementById('status-text');
 
+        try {
+            // ดึงไฟล์และติดตามความคืบหน้า (Download Progress)
+            const loadingTask = pdfjsLib.getDocument(encodeURI(PDF_NAME));
+            
+            loadingTask.onProgress = function(progress) {
+                const percent = (progress.loaded / progress.total) * 100;
+                if (!isNaN(percent)) {
+                    progressBar.style.width = percent + '%';
+                    statusText.innerText = `⏳ กำลังดาวน์โหลด: ${Math.round(percent)}%`;
+                }
+            };
+
+            const pdf = await loadingTask.promise;
+            statusText.innerText = "🔍 กำลังวิเคราะห์ข้อความใน PDF...";
+            
+            let fullText = "";
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const content = await page.getTextContent();
                 fullText += content.items.map(item => item.str).join(" ") + " ";
+                // แสดง progress ตอนวิเคราะห์หน้า
+                progressBar.style.width = (i / pdf.numPages * 100) + '%';
             }
 
             pdfTextContent = fullText;
-            statusDiv.innerText = "✅ ข้อมูล PDF พร้อมแล้ว!";
-            statusDiv.className = "ready";
+            statusText.innerText = "✅ ข้อมูลพร้อมใช้งานแล้ว!";
+            progressBar.style.background = "#28a745";
             document.getElementById('start-btn').style.display = 'block';
         } catch (err) {
-            statusDiv.innerText = "❌ ไม่พบไฟล์ " + PDF_URL;
+            statusText.innerText = "❌ ไม่พบไฟล์ PDF หรือไฟล์เสีย";
+            progressBar.style.background = "#dc3545";
             console.error(err);
         }
     }
 
-    // เริ่มโหลด PDF ทันทีที่เปิดหน้าเว็บ
     window.onload = loadPDF;
 
     document.getElementById('start-btn').addEventListener('click', () => {
@@ -86,13 +109,16 @@
         document.getElementById('stop-btn').style.display = 'block';
         
         html5QrCode = new Html5Qrcode("reader");
-        html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, onScanSuccess);
+        html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: { width: 250, height: 150 } }, onScanSuccess);
     });
 
     function onScanSuccess(decodedText) {
         html5QrCode.pause();
-        let qty = prompt(`สแกนเจอ: ${decodedText}\nใส่จำนวน:`, "1");
-        if (qty) scannedData.push({ barcode: decodedText, qty: parseInt(qty) });
+        if (navigator.vibrate) navigator.vibrate(100);
+        let qty = prompt(`สแกนเจอ: ${decodedText}\nระบุจำนวน:`, "1");
+        if (qty !== null && qty !== "") {
+            scannedData.push({ barcode: decodedText, qty: parseInt(qty) || 0 });
+        }
         setTimeout(() => html5QrCode.resume(), 500);
     }
 
@@ -111,10 +137,11 @@
             tbody.innerHTML += `<tr>
                 <td>${item.barcode}</td>
                 <td>${item.qty}</td>
-                <td style="color:${isFound?'green':'red'}">${isFound?'✅ เจอ':'❌ ไม่เจอ'}</td>
+                <td style="color:${isFound?'green':'red'}; font-weight:bold;">${isFound?'✅ พบ':'❌ ไม่พบ'}</td>
             </tr>`;
         });
         document.getElementById('summary').style.display = 'block';
+        document.getElementById('loading-area').style.display = 'none';
     }
 </script>
 </body>
