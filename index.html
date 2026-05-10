@@ -3,40 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Barcode PDF Summary</title>
+    <title>Barcode Checker Pro</title>
+    <!-- โหลด Library -->
     <script src="https://unpkg.com"></script>
     <script src="https://cloudflare.com"></script>
+    
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; text-align: center; background: #f0f2f5; }
-        #reader { width: 100%; max-width: 400px; margin: 15px auto; border-radius: 15px; overflow: hidden; display: none; }
-        .btn { padding: 12px 25px; font-size: 16px; border: none; border-radius: 8px; cursor: pointer; margin: 5px; color: white; }
-        .btn-start { background: #28a745; }
-        .btn-stop { background: #dc3545; display: none; }
-        .summary-box { margin-top: 20px; text-align: left; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: none; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f8f9fa; }
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; text-align: center; background: #f0f2f5; color: #333; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        
+        #status-bar { 
+            padding: 10px; margin: 15px 0; border-radius: 8px; font-weight: bold;
+            background: #ffeeba; color: #856404; border: 1px solid #ffeeba;
+        }
+        .status-ready { background: #d4edda !important; color: #155724 !important; border-color: #c3e6cb !important; }
+        .status-loading { background: #cce5ff !important; color: #004085 !important; border-color: #b8daff !important; }
+
+        #reader { width: 100%; margin: 15px auto; border-radius: 10px; overflow: hidden; display: none; border: 2px solid #333; }
+        
+        .btn { padding: 15px 30px; font-size: 18px; border: none; border-radius: 10px; cursor: pointer; width: 100%; margin: 10px 0; font-weight: bold; }
+        .btn-start { background: #28a745; color: white; opacity: 0.5; cursor: not-allowed; }
+        .btn-stop { background: #dc3545; color: white; display: none; }
+        
+        .summary-box { margin-top: 20px; text-align: left; display: none; border-top: 2px solid #eee; padding-top: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #f8f9fa; }
+        .found { color: green; font-weight: bold; }
+        .not-found { color: red; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <h2>ระบบเช็ครายการ PDF</h2>
+<div class="container">
+    <h2>📦 ระบบเช็ครายการสินค้า</h2>
 
-    <!-- เลือกไฟล์ PDF -->
-    <div style="margin-bottom: 15px;">
-        <small>1. เลือกไฟล์ PDF ก่อนเริ่ม:</small><br>
-        <input type="file" id="pdf-input" accept="application/pdf">
+    <!-- 1. เลือกไฟล์ PDF -->
+    <div style="text-align: left;">
+        <label><b>ขั้นตอนที่ 1: เลือกไฟล์ PDF</b></label>
+        <input type="file" id="pdf-input" accept="application/pdf" style="margin-top: 10px; width: 100%;">
     </div>
 
-    <!-- ปุ่มควบคุม -->
-    <button id="start-btn" class="btn btn-start">กดเพื่อเริ่มสแกน</button>
+    <!-- 2. แถบสถานะ -->
+    <div id="status-bar">กรุณาเลือกไฟล์ PDF เพื่อเริ่มงาน</div>
+
+    <!-- 3. ปุ่มควบคุม -->
+    <button id="start-btn" class="btn btn-start" disabled>กดเพื่อเริ่มสแกน</button>
     <button id="stop-btn" class="btn btn-stop">เสร็จสิ้น (ดูสรุปผล)</button>
 
     <div id="reader"></div>
 
-    <!-- ส่วนแสดงสรุปผล -->
+    <!-- 4. ส่วนสรุปผล -->
     <div id="summary" class="summary-box">
-        <h3>📊 สรุปรายการที่สแกน (เรียงเลข)</h3>
+        <h3>📊 สรุปรายการ (เรียงเลข)</h3>
         <table id="result-table">
             <thead>
                 <tr>
@@ -47,104 +66,131 @@
             </thead>
             <tbody id="result-body"></tbody>
         </table>
+        <button class="btn" style="background:#6c757d; color:white;" onclick="location.reload()">เริ่มใหม่</button>
     </div>
+</div>
 
-    <script>
-        let scannedData = []; // เก็บ { barcode, qty }
-        let pdfTextContent = "";
-        let html5QrCode;
+<script>
+    let scannedData = []; 
+    let pdfTextContent = "";
+    let html5QrCode;
 
-        // 1. อ่านข้อความจาก PDF เก็บไว้ก่อน
-        document.getElementById('pdf-input').addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async function() {
+    const statusBar = document.getElementById('status-bar');
+    const startBtn = document.getElementById('start-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const pdfInput = document.getElementById('pdf-input');
+
+    // ตั้งค่า PDF.js Worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cloudflare.com';
+
+    // 1. อ่านไฟล์ PDF
+    pdfInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        statusBar.innerText = "⏳ กำลังอ่านไฟล์ PDF โปรดรอสักครู่...";
+        statusBar.className = "status-loading";
+        startBtn.disabled = true;
+        startBtn.style.opacity = "0.5";
+
+        const reader = new FileReader();
+        reader.onload = async function() {
+            try {
                 const typedarray = new Uint8Array(this.result);
                 const pdf = await pdfjsLib.getDocument(typedarray).promise;
                 let fullText = "";
+                
                 for (let i = 1; i <= pdf.numPages; i++) {
                     const page = await pdf.getPage(i);
                     const content = await page.getTextContent();
                     fullText += content.items.map(item => item.str).join(" ") + " ";
                 }
+                
                 pdfTextContent = fullText;
-                alert("อ่าน PDF สำเร็จ! พร้อมใช้งาน");
-            };
-            reader.readAsArrayBuffer(file);
-        });
-
-        // 2. เริ่มเปิดกล้อง
-        document.getElementById('start-btn').addEventListener('click', () => {
-            if (!pdfTextContent) return alert("กรุณาเลือกไฟล์ PDF ก่อนครับ");
-            
-            document.getElementById('reader').style.display = 'block';
-            document.getElementById('start-btn').style.display = 'none';
-            document.getElementById('stop-btn').style.display = 'inline-block';
-            document.getElementById('summary').style.display = 'none';
-
-            html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start(
-                { facingMode: "environment" }, 
-                { fps: 10, qrbox: 250 },
-                onScanSuccess
-            );
-        });
-
-        // 3. เมื่อสแกนติด
-        function onScanSuccess(decodedText) {
-            // หยุดสแกนชั่วคราวเพื่อรอรับค่า prompt
-            html5QrCode.pause(); 
-            
-            let qty = prompt(`สแกนเจอ: ${decodedText}\nกรุณาใส่จำนวน:`, "1");
-            
-            if (qty !== null && qty !== "") {
-                scannedData.push({
-                    barcode: decodedText,
-                    qty: parseInt(qty) || 0
-                });
+                statusBar.innerText = "✅ อ่าน PDF สำเร็จ! พร้อมสแกนแล้ว";
+                statusBar.className = "status-ready";
+                startBtn.disabled = false;
+                startBtn.style.opacity = "1";
+                startBtn.style.cursor = "pointer";
+            } catch (err) {
+                statusBar.innerText = "❌ เกิดข้อผิดพลาดในการอ่าน PDF";
+                alert("ไฟล์ PDF นี้อาจจะถูกล็อกหรืออ่านไม่ได้ครับ");
             }
-            
-            // กลับมาสแกนต่อหลังจากกดตกลง
-            setTimeout(() => html5QrCode.resume(), 500);
-        }
+        };
+        reader.readAsArrayBuffer(file);
+    });
 
-        // 4. กดเสร็จสิ้น และสรุปผล
-        document.getElementById('stop-btn').addEventListener('click', async () => {
-            if (html5QrCode) {
-                await html5QrCode.stop();
-                document.getElementById('reader').style.display = 'none';
-            }
-            document.getElementById('start-btn').style.display = 'inline-block';
-            document.getElementById('stop-btn').style.display = 'none';
-            
-            showSummary();
+    // 2. เริ่มสแกน
+    startBtn.addEventListener('click', () => {
+        document.getElementById('reader').style.display = 'block';
+        startBtn.style.display = 'none';
+        stopBtn.style.display = 'inline-block';
+        document.getElementById('summary').style.display = 'none';
+
+        html5QrCode = new Html5Qrcode("reader");
+        html5QrCode.start(
+            { facingMode: "environment" }, 
+            { fps: 15, qrbox: { width: 250, height: 150 } },
+            onScanSuccess
+        ).catch(err => {
+            alert("ไม่สามารถเปิดกล้องได้: " + err);
         });
+    });
 
-        function showSummary() {
-            const tbody = document.getElementById('result-body');
-            tbody.innerHTML = "";
+    // 3. เมื่อสแกนติด
+    function onScanSuccess(decodedText) {
+        html5QrCode.pause(); 
+        
+        // สั่นเตือนเบาๆ (เฉพาะ Android บางรุ่น)
+        if (navigator.vibrate) navigator.vibrate(100);
 
-            // เรียงลำดับบาร์โค้ดจากน้อยไปมาก
-            scannedData.sort((a, b) => a.barcode.localeCompare(b.barcode));
-
-            scannedData.forEach(item => {
-                const isFound = pdfTextContent.includes(item.barcode);
-                const row = `
-                    <tr>
-                        <td>${item.barcode}</td>
-                        <td>${item.qty}</td>
-                        <td style="color: ${isFound ? 'green' : 'red'}">
-                            ${isFound ? '✅ พบใน PDF' : '❌ ไม่พบ'}
-                        </td>
-                    </tr>
-                `;
-                tbody.innerHTML += row;
+        let qty = prompt(`🔍 สแกนพบ: ${decodedText}\nใส่จำนวนที่ต้องการ:`, "1");
+        
+        if (qty !== null && qty !== "") {
+            scannedData.push({
+                barcode: decodedText,
+                qty: parseInt(qty) || 0
             });
-
-            document.getElementById('summary').style.display = 'block';
-            scannedData = []; // เคลียร์ค่าทิ้งเพื่อการเริ่มใหม่ครั้งหน้า (ถ้าต้องการเก็บไว้ไม่ต้องมีบรรทัดนี้)
         }
-    </script>
+        
+        setTimeout(() => html5QrCode.resume(), 500);
+    }
+
+    // 4. จบการทำงาน
+    stopBtn.addEventListener('click', async () => {
+        if (html5QrCode) {
+            await html5QrCode.stop();
+            document.getElementById('reader').style.display = 'none';
+        }
+        stopBtn.style.display = 'none';
+        showSummary();
+    });
+
+    function showSummary() {
+        const tbody = document.getElementById('result-body');
+        tbody.innerHTML = "";
+
+        // เรียงลำดับบาร์โค้ด
+        scannedData.sort((a, b) => a.barcode.localeCompare(b.barcode));
+
+        scannedData.forEach(item => {
+            const isFound = pdfTextContent.includes(item.barcode);
+            const row = `
+                <tr>
+                    <td>${item.barcode}</td>
+                    <td>${item.qty}</td>
+                    <td class="${isFound ? 'found' : 'not-found'}">
+                        ${isFound ? '✅ พบใน PDF' : '❌ ไม่พบ'}
+                    </td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+
+        document.getElementById('summary').style.display = 'block';
+        statusBar.innerText = "📊 แสดงผลสรุปรายการ";
+    }
+</script>
+
 </body>
 </html>
