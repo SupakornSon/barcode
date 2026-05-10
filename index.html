@@ -3,203 +3,185 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PDF Barcode Scanner</title>
+    <title>Stock Checker Pro</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
 
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; text-align: center; background: #f4f7f9; margin: 0; }
-        .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        body { font-family: 'Chakra Petch', sans-serif; padding: 10px; text-align: center; background: #f0f2f5; margin: 0; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         
-        h2 { color: #333; font-size: 1.2rem; margin-bottom: 15px; }
+        h2 { color: #1a73e8; font-size: 1.1rem; margin: 10px 0; }
         
-        #progress-container { width: 100%; background: #eee; border-radius: 10px; margin: 15px 0; display: block; overflow: hidden; }
-        #progress-bar { width: 0%; height: 12px; background: linear-gradient(90deg, #28a745, #5ddc7b); transition: 0.3s; }
+        #progress-container { width: 100%; background: #eee; border-radius: 20px; margin: 15px 0; overflow: hidden; }
+        #progress-bar { width: 0%; height: 10px; background: linear-gradient(90deg, #4285f4, #34a853); transition: 0.3s; }
         
-        #reader { width: 100%; border-radius: 15px; overflow: hidden; display: none; background: #000; margin-top: 15px; }
+        #reader { width: 100%; border-radius: 12px; overflow: hidden; display: none; background: #000; margin-top: 10px; }
         
         .btn { 
-            padding: 16px; width: 100%; font-size: 18px; border: none; border-radius: 12px; 
-            cursor: pointer; font-weight: bold; margin-top: 10px; color: white; transition: 0.2s;
+            padding: 14px; width: 100%; font-size: 16px; border: none; border-radius: 10px; 
+            cursor: pointer; font-weight: bold; margin-top: 8px; color: white; 
         }
-        .btn:active { transform: scale(0.98); }
-        .btn-start { background: #28a745; display: none; }
-        .btn-stop { background: #dc3545; display: none; }
+        .btn-start { background: #34a853; display: none; }
+        .btn-stop { background: #ea4335; display: none; }
         
-        #summary { margin-top: 20px; display: none; text-align: left; }
-        table { width: 100%; border-collapse: collapse; background: #fff; font-size: 14px; }
-        th, td { border: 1px solid #eee; padding: 12px 8px; text-align: center; }
-        th { background: #f8f9fa; color: #555; }
+        #summary { margin-top: 20px; display: none; }
+        .table-wrapper { overflow-x: auto; border-radius: 8px; border: 1px solid #ddd; }
+        table { width: 100%; border-collapse: collapse; background: #fff; font-size: 12px; min-width: 450px; }
+        th { background: #f8f9fa; color: #555; padding: 10px 5px; border-bottom: 2px solid #eee; }
+        td { padding: 10px 5px; border-bottom: 1px solid #eee; color: #333; }
         
-        .status-found { color: #28a745; font-weight: bold; }
-        .status-notfound { color: #dc3545; font-weight: bold; }
+        .status-ok { color: #28a745; font-weight: bold; }
+        .status-fail { color: #dc3545; font-weight: bold; }
+        .p-name { text-align: left; font-size: 11px; line-height: 1.2; max-width: 150px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2 id="title">📂 กำลังอ่านไฟล์ PDF...</h2>
+    <h2 id="title">🔄 กำลังเตรียมฐานข้อมูลสินค้า...</h2>
     <div id="progress-container">
         <div id="progress-bar"></div>
     </div>
 
     <button id="start-btn" class="btn btn-start">📸 เริ่มสแกนบาร์โค้ด</button>
-    <button id="stop-btn" class="btn btn-stop">🛑 หยุดสแกนและสรุปผล</button>
+    <button id="stop-btn" class="btn btn-stop">🛑 หยุดและดูสรุปผล</button>
 
     <div id="reader"></div>
 
     <div id="summary">
-        <h3 style="text-align:center;">📊 ผลการตรวจสอบ</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>เลขบาร์โค้ด</th>
-                    <th>จำนวน</th>
-                    <th>ใน PDF</th>
-                </tr>
-            </thead>
-            <tbody id="result-body"></tbody>
-        </table>
-        <button class="btn" style="background:#6c757d;" onclick="location.reload()">🔄 เริ่มใหม่</button>
+        <h3>📊 รายการที่สแกนแล้ว</h3>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>บาร์โค้ด</th>
+                        <th>ชื่อสินค้า</th>
+                        <th>จำนวน</th>
+                        <th>สถานะ</th>
+                    </tr>
+                </thead>
+                <tbody id="result-body"></tbody>
+            </table>
+        </div>
+        <button class="btn" style="background:#5f6368;" onclick="location.reload()">🔄 สแกนชุดใหม่</button>
     </div>
 </div>
 
 <script>
-    // --- ตั้งค่าเริ่มต้น ---
-    const PDF_NAME = 'data.pdf'; // ** ต้องชื่อนี้และเป็นตัวเล็กทั้งหมด **
+    const PDF_NAME = 'data.pdf'; 
     let pdfTextContent = "";
     let scannedData = [];
     let html5QrCode;
 
-    // ตั้งค่า Worker สำหรับ PDF.js
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-    // 1. ฟังก์ชันโหลดและอ่านข้อความจาก PDF
-    async function loadPDF() {
+    // 1. โหลด PDF และจัดเตรียมข้อความ
+    async function init() {
         const bar = document.getElementById('progress-bar');
         const title = document.getElementById('title');
 
         try {
             const loadingTask = pdfjsLib.getDocument(PDF_NAME);
-            
             loadingTask.onProgress = (p) => {
-                if (p.total > 0) {
-                    let percent = (p.loaded / p.total * 100);
-                    bar.style.width = percent + '%';
-                }
+                if (p.total > 0) bar.style.width = (p.loaded / p.total * 100) + '%';
             };
 
             const pdf = await loadingTask.promise;
             let fullText = "";
-            
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const content = await page.getTextContent();
-                const strings = content.items.map(item => item.str);
-                fullText += strings.join(" ") + " ";
-                
-                // อัปเดตความคืบหน้าตามจำนวนหน้า
+                // เชื่อมข้อความด้วยวรรค เพื่อให้ค้นหาได้ง่าย
+                fullText += content.items.map(item => item.str).join(" ") + " ";
                 bar.style.width = (i / pdf.numPages * 100) + '%';
             }
 
             pdfTextContent = fullText;
-            title.innerText = "✅ โหลดข้อมูลสำเร็จ";
+            title.innerText = "✅ ข้อมูลพร้อมสแกน";
             document.getElementById('progress-container').style.display = 'none';
             document.getElementById('start-btn').style.display = 'block';
-
         } catch (err) {
-            console.error(err);
-            title.innerText = "❌ โหลดไฟล์ PDF ไม่สำเร็จ";
-            alert("ไม่พบไฟล์ชื่อ " + PDF_NAME + "\nกรุณาตรวจสอบว่าอัปโหลดไฟล์ชื่อนี้ขึ้น GitHub หรือยัง");
-            bar.style.background = "#dc3545";
+            title.innerText = "❌ ไม่พบไฟล์ data.pdf";
+            alert("กรุณาตรวจสอบว่ามีไฟล์ชื่อ data.pdf ใน GitHub หรือยัง");
         }
     }
 
-    // เริ่มทำงานเมื่อเปิดหน้าเว็บ
-    window.onload = loadPDF;
+    window.onload = init;
 
-    // 2. ฟังก์ชันเริ่มสแกน (เปิดกล้อง)
+    // 2. ฟังก์ชันดึงชื่อสินค้าจากบาร์โค้ด
+    function findProductName(barcode) {
+        if (!pdfTextContent.includes(barcode)) return "--- ไม่พบในระบบ ---";
+
+        // หาตำแหน่งเลขบาร์โค้ด
+        let index = pdfTextContent.indexOf(barcode);
+        // ดึงข้อความต่อจากบาร์โค้ดไปอีก 100 ตัวอักษร
+        let sub = pdfTextContent.substring(index + barcode.length, index + 150).trim();
+        
+        // รายการหน่วยสินค้าเพื่อใช้เป็นจุดตัด (อ้างอิงจากรูปภาพของคุณ)
+        const units = ["SPCS", "SPAC", "SKG", "SCAN", "SUNT", "SBOX"];
+        
+        let productName = sub;
+        for (let u of units) {
+            if (sub.includes(u)) {
+                productName = sub.split(u)[0]; // ตัดข้อความเอาแค่ก่อนถึงชื่อหน่วย
+                break;
+            }
+        }
+
+        // ถ้าชื่อยาวเกินไปหรือมีเลขแผนกติดมา ให้พยายามล้างข้อมูลเบื้องต้น
+        return productName.substring(0, 60).trim(); 
+    }
+
+    // 3. เริ่มสแกน
     document.getElementById('start-btn').addEventListener('click', async () => {
         document.getElementById('reader').style.display = 'block';
         document.getElementById('start-btn').style.display = 'none';
         document.getElementById('stop-btn').style.display = 'block';
-        document.getElementById('summary').style.display = 'none';
-
-        html5QrCode = new Html5Qrcode("reader");
         
-        const config = { 
-            fps: 15, 
-            qrbox: { width: 250, height: 150 }, // ปรับขนาดช่องสแกนให้เหมาะกับบาร์โค้ด
-            aspectRatio: 1.0 
-        };
-
-        try {
-            await html5QrCode.start(
-                { facingMode: "environment" }, // ใช้กล้องหลัง
-                config,
-                (decodedText) => {
-                    // เมื่อสแกนเจอ
-                    html5QrCode.pause(true); // หยุดชั่วคราวเพื่อรับค่า
-                    
-                    let qty = prompt(`พบรหัส: ${decodedText}\nระบุจำนวนที่ต้องการ:`, "1");
-                    
-                    if (qty !== null && qty !== "") {
-                        scannedData.push({
-                            barcode: decodedText.trim(),
-                            qty: parseInt(qty) || 0
-                        });
-                    }
-                    
-                    // กลับมาสแกนต่อหลังจากกดตกลง 0.5 วินาที
-                    setTimeout(() => html5QrCode.resume(), 500);
+        html5QrCode = new Html5Qrcode("reader");
+        await html5QrCode.start(
+            { facingMode: "environment" }, 
+            { fps: 10, qrbox: { width: 250, height: 150 } },
+            (text) => {
+                html5QrCode.pause(true);
+                let qty = prompt(`รหัส: ${text}\nใส่จำนวนสินค้า:`, "1");
+                if (qty !== null) {
+                    scannedData.push({ id: text.trim(), q: qty || "0" });
                 }
-            );
-        } catch (err) {
-            alert("ไม่สามารถเข้าถึงกล้องได้: " + err);
-            location.reload();
-        }
+                setTimeout(() => html5QrCode.resume(), 600);
+            }
+        ).catch(err => alert("ผิดพลาด: " + err));
     });
 
-    // 3. ฟังก์ชันหยุดสแกนและสรุปผล
+    // 4. สรุปผล
     document.getElementById('stop-btn').addEventListener('click', async () => {
-        if (html5QrCode) {
-            await html5QrCode.stop();
-            await html5QrCode.clear();
-        }
-
+        if (html5QrCode) { await html5QrCode.stop(); await html5QrCode.clear(); }
         document.getElementById('reader').style.display = 'none';
         document.getElementById('stop-btn').style.display = 'none';
         document.getElementById('summary').style.display = 'block';
         
         const tbody = document.getElementById('result-body');
-        tbody.innerHTML = ""; // ล้างตารางเก่า
-
-        // เรียงลำดับข้อมูลตามรหัสบาร์โค้ด
-        scannedData.sort((a, b) => a.barcode.localeCompare(b.barcode));
+        tbody.innerHTML = "";
 
         scannedData.forEach(item => {
-            // ตรวจสอบว่ารหัสที่สแกนมา "มีอยู่ในข้อความจาก PDF" หรือไม่
-            const isFound = pdfTextContent.includes(item.barcode);
+            const name = findProductName(item.id);
+            const found = pdfTextContent.includes(item.id);
             
-            const row = `
+            tbody.innerHTML += `
                 <tr>
-                    <td>${item.barcode}</td>
-                    <td>${item.qty}</td>
-                    <td class="${isFound ? 'status-found' : 'status-notfound'}">
-                        ${isFound ? '✅ มี' : '❌ ไม่มี'}
+                    <td><b>${item.id}</b></td>
+                    <td class="p-name">${name}</td>
+                    <td>${item.q}</td>
+                    <td class="${found ? 'status-ok' : 'status-fail'}">
+                        ${found ? '✅ ตรง' : '❌ ไม่มี'}
                     </td>
                 </tr>
             `;
-            tbody.innerHTML += row;
         });
-
-        if (scannedData.length === 0) {
-            tbody.innerHTML = "<tr><td colspan='3'>ไม่มีข้อมูลการสแกน</td></tr>";
-        }
     });
 </script>
-
 </body>
 </html>
